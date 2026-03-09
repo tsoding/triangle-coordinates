@@ -96,7 +96,7 @@ function coordinates(p1, p2, p3, p) {
     const b = dx12*dy1  - dx1*dy12;
     return {
         t1: t/a,
-        t2: b/t,
+        t2: isNaN(b/t) ? 0 : b/t,
     }
 }
 
