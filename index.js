@@ -119,6 +119,7 @@ let dragging = -1;
 let highlighted = [0, 0, 0, 0];
 
 function clamp(x, lo, hi) {
+    if (isNaN(x)) return lo;
     return Math.min(Math.max(x, lo), hi);
 }
 
