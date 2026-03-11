@@ -2,6 +2,7 @@ const BACKGROUND               = "#141414";
 const WHITE                    = "#FFFFFF";
 const RED                      = "#FF2020";
 const CYAN                     = "#20FFFF";
+const GREEN                    = "#228B22";
 const MARKER_RADIUS            = 0.03;
 const MARKER_ENLARGMENT_FACTOR = 1.2;
 const FRAME_THICKNESS          = 0.01
@@ -63,6 +64,35 @@ function v2sub({x: x1, y: y1}, {x: x2, y: y2}) {
     }
 }
 
+function barycentric(p1, p2, p3, p) {
+  const det = (p2.y - p3.y)*(p1.x - p3.x) + (p3.x - p2.x)*(p1.y - p3.y)
+  let u = []
+  u[0] = ((p2.y - p3.y)*(p.x - p3.x) + (p3.x - p2.x)*(p.y - p3.y))/det
+  u[1] = ((p3.y - p1.y)*(p.x - p3.x) + (p1.x - p3.x)*(p.y - p3.y))/det
+  u[2] = 1 - u[0] - u[1]
+  const sum = u
+    .filter((u_i)=> u_i >= 0)
+    .reduce((acc, cur_val) => acc + cur_val, 0);
+  for (let i = 0; i < u.length; i++) {
+    if (u[i] < 0) {
+      u[i] = 0
+    } else {
+      u[i] = u[i] / sum
+    }
+  }
+  return u
+}
+
+function from_bc_to_cartesian(p1, p2, p3, u) {
+  let p = [p1,p2,p3]
+  let ret = {x: 0, y: 0}
+  for (let i = 0; i < p.length; i++) {
+    const t = v2scale(p[i], u[i])
+    ret = v2add(ret, t)
+  }
+  return ret
+}
+
 function v2len({x, y}) {
     return Math.sqrt(x*x + y*y);
 }
@@ -111,12 +141,13 @@ function inverseCoordinates(p1, p2, p3, t1, t2) {
 
 let ps = [
     screenCenter(),
+    screenCenter(),
     triangleCorner(screenCenter(), 0),
     triangleCorner(screenCenter(), 1),
     triangleCorner(screenCenter(), 2),
 ]
 let dragging = -1;
-let highlighted = [0, 0, 0, 0];
+let highlighted = [0, 0, 0, 0, 0];
 
 function clamp(x, lo, hi) {
     if (isNaN(x)) return lo;
@@ -127,22 +158,30 @@ function redrawScene() {
     ctx.fillStyle = BACKGROUND
     ctx.fillRect(0, 0, game.width, game.height);
 
-    let {t1, t2} = coordinates(ps[1], ps[2], ps[3], ps[0]);
+    let {t1, t2} = coordinates(ps[2], ps[3], ps[4], ps[0]);
     t1 = clamp(t1, 0, 1);
     t2 = clamp(t2, 0, 1);
-    ps[0] = inverseCoordinates(ps[1], ps[2], ps[3], t1, t2);
+    ps[0] = inverseCoordinates(ps[2], ps[3], ps[4], t1, t2);
 
-    drawLine(v2lerp(ps[1], ps[2], t1), v2lerp(ps[1], ps[3], t1), game.height*FRAME_THICKNESS, CYAN);
-    drawLine(ps[1], v2lerp(v2lerp(ps[1], ps[2], t1), v2lerp(ps[1], ps[3], t1), 0.5), game.height*FRAME_THICKNESS, CYAN);
+    let bc = barycentric(ps[2], ps[3], ps[4], ps[1])
+    ps[1] = from_bc_to_cartesian(ps[2], ps[3], ps[4], bc)
 
-    drawLine(ps[1], ps[2], game.height*FRAME_THICKNESS, RED);
+    drawLine(v2lerp(ps[2], ps[3], t1), v2lerp(ps[2], ps[4], t1), game.height*FRAME_THICKNESS, CYAN);
+    drawLine(ps[2], v2lerp(v2lerp(ps[2], ps[3], t1), v2lerp(ps[2], ps[4], t1), 0.5), game.height*FRAME_THICKNESS, CYAN);
+
     drawLine(ps[2], ps[3], game.height*FRAME_THICKNESS, RED);
-    drawLine(ps[3], ps[1], game.height*FRAME_THICKNESS, RED);
+    drawLine(ps[3], ps[4], game.height*FRAME_THICKNESS, RED);
+    drawLine(ps[4], ps[2], game.height*FRAME_THICKNESS, RED);
 
-    fillCircle(ps[1], highlighted[1] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[1] ? WHITE : RED);
+    drawLine(ps[1], ps[3], game.height*FRAME_THICKNESS, GREEN);
+    drawLine(ps[1], ps[4], game.height*FRAME_THICKNESS, GREEN);
+    drawLine(ps[1], ps[2], game.height*FRAME_THICKNESS, GREEN);
+
     fillCircle(ps[2], highlighted[2] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[2] ? WHITE : RED);
     fillCircle(ps[3], highlighted[3] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[3] ? WHITE : RED);
+    fillCircle(ps[4], highlighted[4] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[4] ? WHITE : RED);
     fillCircle(ps[0], highlighted[0] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[0] ? WHITE : CYAN);
+    fillCircle(ps[1], highlighted[1] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS, highlighted[1] ? WHITE : GREEN);
 }
 
 redrawScene();
@@ -176,12 +215,12 @@ game.addEventListener('mousemove', (e) => {
     for (let i = 0; i < ps.length; ++i) {
         highlighted[i] = v2dist(mouse, ps[i]) <= (highlighted[i] ? game.height*MARKER_RADIUS*MARKER_ENLARGMENT_FACTOR : game.height*MARKER_RADIUS) || i == dragging;
     }
-    if (dragging == 0) {
+    if (dragging == 0 || dragging == 1) {
         ps[dragging] = mouse;
     } else if (dragging > 0) {
-        let {t1, t2} = coordinates(ps[1], ps[2], ps[3], ps[0]);
+        let {t1, t2} = coordinates(ps[2], ps[3], ps[4], ps[0]);
         ps[dragging] = mouse;
-        ps[0] = inverseCoordinates(ps[1], ps[2], ps[3], t1, t2);
-    }
+        ps[0] = inverseCoordinates(ps[2], ps[3], ps[4], t1, t2);
+  }
     redrawScene();
 });
