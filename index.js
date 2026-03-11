@@ -221,8 +221,6 @@ game.addEventListener('mousemove', (e) => {
         let {t1, t2} = coordinates(ps[2], ps[3], ps[4], ps[0]);
         ps[dragging] = mouse;
         ps[0] = inverseCoordinates(ps[2], ps[3], ps[4], t1, t2);
-        let bc = barycentric(ps[2], ps[3], ps[4], ps[1])
-        ps[1] = from_bc_to_cartesian(ps[2], ps[3], ps[4], bc)
   }
     redrawScene();
 });
